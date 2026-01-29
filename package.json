@@ -1,0 +1,110 @@
+{
+  "name": "rn-dependency-radar",
+  "displayName": "RN Dependency Radar",
+  "description": "React Native & Expo Dependency Health Monitor for VS Code.",
+  "icon": "images/icon.png",
+  "version": "0.1.0",
+  "publisher": "your-publisher-id",
+  "engines": {
+    "vscode": "^1.80.0"
+  },
+  "categories": [
+    "Other"
+  ],
+  "main": "./dist/extension.js",
+  "activationEvents": [
+    "workspaceContains:package.json",
+    "workspaceContains:app.json",
+    "workspaceContains:app.config.js"
+  ],
+  "contributes": {
+    "configuration": {
+      "title": "RN Dependency Radar",
+      "properties": {
+        "rnDependencyRadar.scanOnStartup": {
+          "type": "boolean",
+          "default": true,
+          "description": "Run an initial dependency scan when opening a React Native or Expo project."
+        },
+        "rnDependencyRadar.alertLevel": {
+          "type": "string",
+          "enum": [
+            "high",
+            "medium",
+            "low"
+          ],
+          "default": "high",
+          "description": "Minimum risk severity level to display immediate alerts."
+        },
+        "rnDependencyRadar.ignore": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          },
+          "default": [],
+          "description": "List of dependencies to be ignored by RN Dependency Radar in this workspace."
+        },
+        "rnDependencyRadar.riskThresholds.installedVersionAgeMonths": {
+          "type": "object",
+          "default": {
+            "high": 36,
+            "medium": 18
+          },
+          "description": "Thresholds (in months) for installed version age to trigger risk levels. Versions older than 'high' months get HIGH risk, older than 'medium' months get MEDIUM risk."
+        },
+        "rnDependencyRadar.riskThresholds.missedVersionsCount": {
+          "type": "object",
+          "default": {
+            "high": 50,
+            "medium": 10
+          },
+          "description": "Thresholds for number of missed versions to trigger risk levels. More than 'high' versions get HIGH risk, more than 'medium' versions get MEDIUM risk."
+        },
+        "rnDependencyRadar.riskThresholds.libraryLastUpdateMonths": {
+          "type": "object",
+          "default": {
+            "high": 24,
+            "medium": 12
+          },
+          "description": "Thresholds (in months) for library's last update to trigger risk levels. Libraries not updated in more than 'high' months get HIGH risk, more than 'medium' months get MEDIUM risk."
+        }
+      }
+    },
+    "commands": [
+      {
+        "command": "rnDependencyRadar.testMetadataAsyncStorage",
+        "title": "RN Dependency Radar: Test metadata for @react-native-community/async-storage",
+        "category": "RN Dependency Radar"
+      },
+      {
+        "command": "rnDependencyRadar.openSettings",
+        "title": "Open Settings",
+        "category": "RN Dependency Radar",
+        "icon": "$(settings-gear)"
+      },
+      {
+        "command": "rnDependencyRadar.recalculateRisks",
+        "title": "Recalculate Risks",
+        "category": "RN Dependency Radar"
+      }
+    ]
+  },
+  "scripts": {
+    "vscode:prepublish": "npm run build",
+    "build": "tsc -p ./ && npm run copy-rules",
+    "copy-rules": "mkdir -p dist/rules && cp rules/rn-default-rules.json dist/rules/",
+    "watch": "tsc -watch -p ./",
+    "lint": "echo \"No lint configured\"",
+    "test": "echo \"No tests yet\""
+  },
+  "devDependencies": {
+    "@types/node": "^22.0.0",
+    "@types/vscode": "^1.80.0",
+    "typescript": "^5.6.0",
+    "vsce": "^2.15.0"
+  },
+  "dependencies": {
+    "semver": "^7.6.0"
+  }
+}
+

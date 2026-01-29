@@ -1,0 +1,13 @@
+[
+  {
+    "id": "deprecated-library",
+    "scope": "react-native",
+    "target": "library",
+    "conditions": {
+      "deprecated": true
+    },
+    "risk": "high",
+    "message": "Package is marked as deprecated on npm — consider migrating to the suggested alternative."
+  }
+]
+
