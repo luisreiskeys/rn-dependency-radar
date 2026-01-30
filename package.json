@@ -3,8 +3,12 @@
   "displayName": "RN Dependency Radar",
   "description": "React Native & Expo Dependency Health Monitor for VS Code.",
   "icon": "images/icon.png",
-  "version": "0.1.0",
-  "publisher": "your-publisher-id",
+  "version": "0.1.9",
+  "publisher": "luisreisdev",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/luisreiskeys/rn-dependency-radar.git"
+  },
   "engines": {
     "vscode": "^1.80.0"
   },
@@ -86,6 +90,12 @@
         "command": "rnDependencyRadar.recalculateRisks",
         "title": "Recalculate Risks",
         "category": "RN Dependency Radar"
+      },
+      {
+        "command": "rnDependencyRadar.refresh",
+        "title": "Refresh Dependencies",
+        "category": "RN Dependency Radar",
+        "icon": "$(refresh)"
       }
     ]
   },
@@ -95,7 +105,11 @@
     "copy-rules": "mkdir -p dist/rules && cp rules/rn-default-rules.json dist/rules/",
     "watch": "tsc -watch -p ./",
     "lint": "echo \"No lint configured\"",
-    "test": "echo \"No tests yet\""
+    "test": "echo \"No tests yet\"",
+    "publish:all": "npm run build && npm run git:commit && npm run git:push && npm run publish:vsce",
+    "publish:vsce": "npx @vscode/vsce publish",
+    "git:commit": "git add -A && git commit -m \"chore: release v$(node -p \"require('./package.json').version\")\"",
+    "git:push": "git push origin main"
   },
   "devDependencies": {
     "@types/node": "^22.0.0",

@@ -9,5 +9,13 @@ vsc-extension-quickstart.md
 **/tsconfig.json
 **/*.map
 **/*.ts
-node_modules/**
+# vsce automatically includes production dependencies (semver)
+# We only exclude devDependencies to reduce package size
+node_modules/@types
+node_modules/typescript
+node_modules/@vscode
+node_modules/vsce
+debug-extension.js
+debug-extension-simple.js
+DEBUG.md
 *.vsix

@@ -38,13 +38,31 @@ export class DependencyAnalyzer {
     // Read actual installed versions from lock files
     const installedVersions = this.readInstalledVersions();
 
+    const totalDeps = Object.keys(allDeps).length;
+    console.log(`[RN Dependency Radar] Starting scan of ${totalDeps} dependencies...`);
+    const scanStartTime = Date.now();
+    let cacheHits = 0;
+    let cacheMisses = 0;
+
     const dependencies = (await Promise.all(
       Object.entries(allDeps).map(async ([name, version]) => {
         const isDev = devNames.has(name);
         // Use actual installed version from lock file if available, otherwise use package.json version
         const actualVersion = installedVersions.get(name) || version as string;
         const dep = this.buildDependencyInfo(name, actualVersion, isDev);
+        
+        const metadataStartTime = Date.now();
         const remote = await this.metadataService.get(name);
+        const metadataDuration = Date.now() - metadataStartTime;
+        
+        if (metadataDuration < 10) {
+          cacheHits++;
+        } else {
+          cacheMisses++;
+          if (metadataDuration > 1000) {
+            console.log(`[RN Dependency Radar] Slow metadata fetch for ${name}: ${metadataDuration}ms`);
+          }
+        }
 
         if (remote) {
           dep.meta.latestVersion = remote.latestVersion;
@@ -108,6 +126,9 @@ export class DependencyAnalyzer {
       })
     )) as DependencyInfo[];
 
+    const scanDuration = Date.now() - scanStartTime;
+    console.log(`[RN Dependency Radar] Metadata fetch completed in ${(scanDuration / 1000).toFixed(1)}s (${cacheHits} cached, ${cacheMisses} fetched from npm)`);
+
     const risks = dependencies.map((dep) =>
       this.rulesEngine.evaluate(dep, this.project, this.riskScorer)
     );
@@ -125,6 +146,112 @@ export class DependencyAnalyzer {
       criticalCount: risks.filter((r) => r.riskLevel === "high").length,
       risks
     };
+  }
+
+  /**
+   * Scan a single dependency (incremental scan)
+   */
+  async scanSingle(packageName: string): Promise<DependencyRisk | null> {
+    const pkgPath = path.join(this.project.rootPath, "package.json");
+    if (!fs.existsSync(pkgPath)) {
+      return null;
+    }
+
+    const pkg = JSON.parse(fs.readFileSync(pkgPath, "utf8"));
+    const allDeps: Record<string, string> = {
+      ...(pkg.dependencies ?? {}),
+      ...(pkg.devDependencies ?? {})
+    };
+    const devNames = new Set<string>(Object.keys(pkg.devDependencies ?? {}));
+
+    if (!(packageName in allDeps)) {
+      return null; // Package not found
+    }
+
+    const version = allDeps[packageName];
+    const isDev = devNames.has(packageName);
+    const installedVersions = this.readInstalledVersions();
+    const actualVersion = installedVersions.get(packageName) || version;
+
+    const dep = this.buildDependencyInfo(packageName, actualVersion, isDev);
+    const remote = await this.metadataService.get(packageName);
+
+    if (remote) {
+      dep.meta.latestVersion = remote.latestVersion;
+      dep.meta.lastUpdatedAt = remote.lastUpdatedAt;
+      dep.meta.deprecated = remote.deprecated;
+
+      if (remote.lastUpdatedAt) {
+        const months =
+          (Date.now() - new Date(remote.lastUpdatedAt).getTime()) /
+          (1000 * 60 * 60 * 24 * 30);
+        dep.meta.lastUpdateMonths = months;
+      }
+
+      if (remote.versionTimes && dep.meta.latestVersion && dep.version) {
+        const normalizeVersion = (v: string) =>
+          v.replace(/^[\^~><=]+/, "");
+
+        const installedRange = dep.version;
+        const installedSemver =
+          semver.minVersion(installedRange)?.version ??
+          normalizeVersion(installedRange);
+
+        const latestSemver = normalizeVersion(dep.meta.latestVersion);
+
+        const installedTime =
+          remote.versionTimes[installedSemver] ??
+          remote.versionTimes[installedRange] ??
+          null;
+
+        if (installedTime) {
+          const months =
+            (Date.now() - new Date(installedTime).getTime()) /
+            (1000 * 60 * 60 * 24 * 30);
+          dep.meta.installedLastUpdatedAt = installedTime;
+          dep.meta.installedLastUpdateMonths = Math.floor(months);
+        }
+
+        // Count how many versions exist between installed and latest
+        const allVersions = Object.keys(remote.versionTimes).filter((v) =>
+          semver.valid(normalizeVersion(v))
+        );
+
+        const installedValid = semver.valid(installedSemver);
+        const latestValid = semver.valid(latestSemver);
+
+        if (installedValid && latestValid) {
+          const missed = allVersions.filter((v) => {
+            const nv = normalizeVersion(v);
+            return (
+              semver.gt(nv, installedSemver) &&
+              (semver.lte(nv, latestSemver) || nv === latestSemver)
+            );
+          });
+
+          dep.meta.missedVersionsCount = missed.length;
+        }
+      }
+
+      if (dep.version && dep.meta.lastUpdatedAt) {
+        try {
+          const installed = semver.parse(dep.version);
+          if (installed && installed.release) {
+            // Approximate: use latest update date as proxy
+            const months =
+              (Date.now() - new Date(dep.meta.lastUpdatedAt).getTime()) /
+              (1000 * 60 * 60 * 24 * 30);
+            dep.meta.installedLastUpdateMonths = months;
+            dep.meta.installedLastUpdatedAt = dep.meta.lastUpdatedAt;
+          }
+        } catch (e) {
+          // Invalid semver
+        }
+      }
+    }
+
+    const risk = this.rulesEngine.evaluate(dep, this.project, this.riskScorer);
+    return risk;
   }
 
   private buildDependencyInfo(
